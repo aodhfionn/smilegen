@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <png.h>
 
+#define WIDTH 128
+#define HEIGHT 128
+
 typedef struct
 {
     uint8_t r;
@@ -105,24 +108,43 @@ bitmap_t init_bitmap(int w, int h)
     return bitmap;
 }
 
+int sr(int seed, int range)
+{
+    return rand()%range;
+}
+
 void process(bitmap_t* bitmap, int seed)
 {
+    srand(seed);
+    int noise = rand()%25; // ends up being in the range of -n to n
+
+    struct tint 
+    {
+        int rt, gt, bt;
+    };
+    struct tint t = {rand()%255, rand()%255, rand()%255}; // must be better way
+
     for (int y = 0; y < bitmap->height; y++)
     {
         for (int x = 0; x < bitmap->width; x++)
         {
             pixel_t* pixel = pixel_at(bitmap, x, y);
-            pixel->r = 255;
-            pixel->b = 150;
+            
+            pixel->r = t.rt-((rand()%noise*2)-noise);
+            pixel->g = t.gt-((rand()%noise*2)-noise);
+            pixel->b = t.bt-((rand()%noise*2)-noise);
+            // format as struct
 
             pixel->a = 255;
         }
     }
+
+    
 }
 
 int main(int argc, char* argv[])
 {
-    bitmap_t img = init_bitmap(16, 16);
+    bitmap_t img = init_bitmap(WIDTH, HEIGHT);
 
     int seed;
     if (argc == 1)
