@@ -15,25 +15,25 @@ typedef struct
 
 typedef struct
 {
-    pixel_t *pixels;
+    pixel_t* pixels;
     size_t width;
     size_t height;
 } bitmap_t;
 
-pixel_t* pixel_at(bitmap_t *bitmap, int x, int y)
+void quit(const char* msg)
+{
+    printf("%s\n", msg);
+    abort();
+}
+
+pixel_t* pixel_at(bitmap_t* bitmap, int x, int y)
 {
     return bitmap->pixels + bitmap->width * y + x; // returns the pixel at a given x,y coordinate
 }
 
-void quit(const char* msg)
-{
-    printf("%s", msg);
-    abort();
-}
-
 void write_file(bitmap_t* bitmap, const char* fname)
 {
-    size_t x, y;
+    size_t x, y; // used for iterators
 
     int pixel_size = 4;
     int depth = 8;
@@ -41,7 +41,7 @@ void write_file(bitmap_t* bitmap, const char* fname)
     FILE* fp = fopen(fname, "wb");
     if (!fp) quit("Failed to open PNG file");
 
-    png_byte **row_pointers = NULL;
+    png_byte** row_pointers = NULL;
 
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png) quit("Failed to create write struct");
@@ -61,37 +61,20 @@ void write_file(bitmap_t* bitmap, const char* fname)
         PNG_COMPRESSION_TYPE_DEFAULT,
         PNG_FILTER_TYPE_DEFAULT                
     );
-    
 
-    /* initialize rows of bitmap
-    row_pointers = png_malloc(png, bitmap->height * sizeof(png_byte *));
-    for (y = 0; y < bitmap->height; y++)
+    row_pointers = png_malloc(png, bitmap->height * sizeof(png_byte*));
+    for (y = 0; y < bitmap->height; ++y)
     {
         png_byte *row = png_malloc(png, sizeof(uint8_t) * bitmap->width * pixel_size);
         row_pointers[y] = row;
-        
-        for (x = 0; x < bitmap->width; x++)
-        {
-            pixel_t* pixel = pixel_at(bitmap, x, y);
-            *row++ = pixel->r;
-            *row++ = pixel->g;
-            *row++ = pixel->b;
-            *row++ = pixel->a;
-        }
-    }
-    */
 
-    row_pointers = png_malloc(png, bitmap->height * sizeof(png_byte *));
-    for (y = 0; y < bitmap->height; ++y) {
-        png_byte *row =
-            png_malloc(png, sizeof(uint8_t) * bitmap->width * pixel_size);
-        row_pointers[y] = row;
-        for (x = 0; x < bitmap->width; ++x) {
+        for (x = 0; x < bitmap->width; ++x)
+        {
             pixel_t * pixel = pixel_at(bitmap, x, y);
             *row++ = pixel->r;
             *row++ = pixel->g;
             *row++ = pixel->b;
-            *row++ = pixel->a;
+            *row++ = pixel->a; // fix this
         }
     }
 
@@ -130,28 +113,28 @@ void process(bitmap_t* bitmap, int seed)
         {
             pixel_t* pixel = pixel_at(bitmap, x, y);
             pixel->r = 255;
+            pixel->b = 150;
+
             pixel->a = 255;
         }
     }
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     bitmap_t img = init_bitmap(16, 16);
 
-    /*
-    for (int y = 0; y < img.height; y++) {
-        for (int x = 0; x < img.width; x++) {
-            pixel_t * pixel = pixel_at(&img, x, y);
-            pixel->r = 255;
-            pixel->g = pix(y, img.height);
-            pixel->a = pix(x, img.width);
-        }
+    int seed;
+    if (argc == 1)
+    {
+        quit("Please provide a seed");
+    } else
+    {
+        seed = atoi(argv[1]);
     }
-    */
-
-    process(&img, 1);
-    write_file(&img, "icon.png");
+    
+    process(&img, seed);
+    write_file(&img, "output.png");
 
     return 0;
 }
