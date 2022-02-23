@@ -262,13 +262,13 @@ void process(bitmap_t* bitmap, int seed)
     // bezier curve
     
     double x, y, t;
-    for (t = 0.0; t <= 1.0; t += 0.001) // bug with rounding precision, will sometimes leave gaps inbetween line (increment must be smaller)
+    for (t = 0.0; t <= 1.0; t += 0.01) // bug with rounding precision, will sometimes leave gaps inbetween line
     {
         x = pow(1-t, 3)*pts[0].x + 3*t*pow(1-t, 2)*pts[2].x + 3*pow(t, 2)*(1-t)*pts[3].x + pow(t, 3)*pts[1].x;
         y = pow(1-t, 3)*pts[0].y + 3*t*pow(1-t, 2)*pts[2].y + 3*pow(t, 2)*(1-t)*pts[3].y + pow(t, 3)*pts[1].y;
 
         // current order: 0231
-        // should be 0123 but points are plotted in wrong order (FIX THIS)
+        // should be 0123 but points are plotted in wrong order (WONT FIX)
 
         pixel_t* px = pixel_at(bitmap, (int)x, (int)y);
         draw(px, cmode);

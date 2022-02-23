@@ -6,7 +6,7 @@ const int width = 64;
 const int height = 64;
 
 const char* filename = "img";
-const char* filepath = "../output/";
+const char* filepath = "output/";
 
 // whether or not new output images will overwrite the previous one, or create a new co-existing one instead
 const int overwrite = 1;
