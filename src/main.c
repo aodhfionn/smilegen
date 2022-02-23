@@ -3,10 +3,12 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <math.h>
+#include <string.h>
+#include <dirent.h>
 #include <png.h>
 
-#define WIDTH 128
-#define HEIGHT 128
+#include "config.h"
 
 typedef struct
 {
@@ -23,6 +25,11 @@ typedef struct
     size_t height;
 } bitmap_t;
 
+struct point
+{
+    unsigned int x, y;
+};
+
 void quit(const char* msg)
 {
     printf("%s\n", msg);
@@ -34,14 +41,42 @@ pixel_t* pixel_at(bitmap_t* bitmap, int x, int y)
     return bitmap->pixels + bitmap->width * y + x; // returns the pixel at a given x,y coordinate
 }
 
-void write_file(bitmap_t* bitmap, const char* fname)
+void write_file(bitmap_t* bitmap, const char* fname, const char* fpath)
 {
     size_t x, y; // used for iterators
 
     int pixel_size = 4;
     int depth = 8;
 
-    FILE* fp = fopen(fname, "wb");
+    char* path = strdup(fpath);
+    char* name = strdup(fname);
+    
+    if (!overwrite) // counts the amount of files in the directory, and appends said amount to the end of the filename
+    {
+        int count = 0;
+
+        DIR* dirp;
+        struct dirent* entry;
+
+        dirp = opendir(fpath);
+        while ((entry = readdir(dirp)) != NULL)
+        {
+            if (entry->d_type == DT_REG)
+            {
+                count++;
+            }
+        }
+
+        char buf[64];
+        sprintf(buf, "%d", count);
+
+        strcat(name, buf);
+    }
+
+    strcat(path, name);
+    strcat(path, ".png");
+
+    FILE* fp = fopen(path, "wb");
     if (!fp) quit("Failed to open PNG file");
 
     png_byte** row_pointers = NULL;
@@ -97,32 +132,54 @@ void write_file(bitmap_t* bitmap, const char* fname)
         png_destroy_write_struct(&png, &info);
 }
 
-bitmap_t init_bitmap(int w, int h)
+void draw(pixel_t* px, int cmode)
 {
-    bitmap_t bitmap;
+    px->a = 255;
 
-    bitmap.width = w;
-    bitmap.height = h;
-    bitmap.pixels = calloc(sizeof(pixel_t), bitmap.width * bitmap.height);
+    begin:
+    switch (cmode)
+    {
+        case 0: // white 
+            px->r = 255;
+            px->g = 255;
+            px->g = 255;
+            break;
+        case 1: // black
+            px->r = 1;
+            px->g = 1;
+            px->b = 1;
+            break;
+        case 2: // inverted
+            px->r = 255-px->r;
+            px->g = 255-px->g;
+            px->b = 255-px->b;
+            break;
+        default:
+        {
+            int* cm = &cmode;
 
-    return bitmap;
-}
+            if (cmode < 0) // doesnt really work i think but its fine
+            {
+                *cm += abs(cmode);
+                goto begin;
+            }
 
-int sr(int seed, int range)
-{
-    return rand()%range;
+            *cm = cmode%3;
+            goto begin;
+        }
+    }
 }
 
 void process(bitmap_t* bitmap, int seed)
 {
     srand(seed);
     int noise = rand()%25; // ends up being in the range of -n to n
-
-    struct tint 
-    {
-        int rt, gt, bt;
-    };
-    struct tint t = {rand()%255, rand()%255, rand()%255}; // must be better way
+    
+    // tint values
+    int
+    rt = rand()%255,
+    gt = rand()%255,
+    bt = rand()%255;
 
     for (int y = 0; y < bitmap->height; y++)
     {
@@ -130,33 +187,109 @@ void process(bitmap_t* bitmap, int seed)
         {
             pixel_t* pixel = pixel_at(bitmap, x, y);
             
-            pixel->r = t.rt-((rand()%noise*2)-noise);
-            pixel->g = t.gt-((rand()%noise*2)-noise);
-            pixel->b = t.bt-((rand()%noise*2)-noise);
+            pixel->r = rt-((rand()%noise*2)-noise);
+            pixel->g = gt-((rand()%noise*2)-noise);
+            pixel->b = bt-((rand()%noise*2)-noise);
             // format as struct
 
             pixel->a = 255;
         }
     }
 
+    int cmode = rand()%3;
+
+    for (int i = 0; i < 2; i++)
+    {
+        static int
+        indent[2] = {8,8},
+        radius;
+
+        if (i == 0) 
+            radius = (rand()%5)+5;
+        
+        // make all this stuff relative to the dimensions
+        int pos[2] = {-radius-indent[0],-radius-indent[1]};
+
+        for (int y = 0; y <= height; y++)
+        {
+            for (int x = 0; x <= width; x++)
+            {
+                if (pow((x+pos[0]), 2) + pow((y+pos[1]), 2) <= pow(radius, 2)) // (x + P_1)^2 + (y + P_2)^2 <= R^2
+                {
+                    pixel_t* px = pixel_at(bitmap, x, y);
+
+                    draw(px, cmode);
+                }
+            }
+        }
+
+        radius = (rand()%5)+5;
+        indent[0] = width - (radius*2 + indent[0]);
+    }
+
+    struct point pts[4];
+
+    // point gen
+
+    for (int i = 1; i <= 4; i++)
+    {
+        const int three_quarters = height-(height/4);
+
+        int xMin = 0, yMin = height/2,
+        xMax = width/2, yMax = three_quarters;
+
+        if (i%2)
+        {
+            xMin = width/2;
+            xMax = width; 
+        }
+
+        if (i > 2)
+        {
+            yMin = three_quarters;
+            yMax = height;
+        }
+        
+        pts[i-1].x = (rand()%(xMax-xMin))+xMin;
+        pts[i-1].y = (rand()%(yMax-yMin))+yMin;
+
+        pixel_t* px = pixel_at(bitmap, pts[i-1].x, pts[i-1].y);
+
+        if (draw_points)
+            draw(px, cmode);
+    }
+
+    // bezier curve
     
+    double x, y, t;
+    for (t = 0.0; t <= 1.0; t += 0.001) // bug with rounding precision, will sometimes leave gaps inbetween line (increment must be smaller)
+    {
+        x = pow(1-t, 3)*pts[0].x + 3*t*pow(1-t, 2)*pts[2].x + 3*pow(t, 2)*(1-t)*pts[3].x + pow(t, 3)*pts[1].x;
+        y = pow(1-t, 3)*pts[0].y + 3*t*pow(1-t, 2)*pts[2].y + 3*pow(t, 2)*(1-t)*pts[3].y + pow(t, 3)*pts[1].y;
+
+        // current order: 0231
+        // should be 0123 but points are plotted in wrong order (FIX THIS)
+
+        pixel_t* px = pixel_at(bitmap, (int)x, (int)y);
+        draw(px, cmode);
+    }
 }
 
 int main(int argc, char* argv[])
 {
-    bitmap_t img = init_bitmap(WIDTH, HEIGHT);
-
     int seed;
     if (argc == 1)
-    {
         quit("Please provide a seed");
-    } else
-    {
+    else
         seed = atoi(argv[1]);
-    }
-    
-    process(&img, seed);
-    write_file(&img, "output.png");
+
+    bitmap_t bitmap;
+    bitmap.width = width;
+    bitmap.height = height;
+    bitmap.pixels = calloc(sizeof(pixel_t), bitmap.width * bitmap.height);
+
+    process(&bitmap, seed);
+    write_file(&bitmap, filename, filepath);
 
     return 0;
 }
